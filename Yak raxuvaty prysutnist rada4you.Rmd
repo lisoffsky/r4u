@@ -1,0 +1,108 @@
+---
+title: "Підрахунок присутності з сайту Вони голосують для тебе"
+output:
+  html_document: default
+  html_notebook: default
+---
+Це код який дозволить порахувати дані для присутності з сайту ["Вони голосують для тебе"](https://rada4you.org)
+
+Кожне сіре вікно з кодом можна запустити через кнопочку трикутник вправо справа зверху сірого вікна.
+
+Самий початок. Треба встановити [R](https://cloud.r-project.org/) та [Rstudio](http://rstudio.com)
+
+Для початку зі скрейпера [morph.io](https://morph.io/openaustralia/ukraine_verkhovna_rada_votes) потрібно скачати два файла
+
+* vote_events
+* votes (цей файл може готуватись до завантаження хвилин 5, а потім ще 5 завантажуватись)
+
+**Увага!** Файли при завантаженні будуть називатись однаково, варто називати файл *vote_events* якось інакше.
+
+Щоб залогінитись на morph.io треба мати акаунт на гітхаб :)
+
+Після цього, треба відкрити файл *vote_events* в банальному екселі і відсортувати голосування за потрібний місяць чи період по стовпчику *start_date*. Можна просто включити фільтр і в ньому забити 2017-04 якщо хочеться працювати з квітнем 2017-го року
+
+Тепер, коли дані відсортовано, треба вибрати два значення, найменше і найбільше.
+
+Тепер і тільки вперше запускаємо перші два рядки коду, а потім запускаємо потрібну бібліотеку (рядок коду 24) та кодування
+```{r}
+install.packages("dplyr")
+install.packages("plyr")
+library(dplyr)
+Sys.setlocale(category = "LC_ALL", locale = "Ukrainian")
+```
+
+
+Іще потрібно встановити робочою ту папку, в якій лежать файли *vote_events* та *votes*
+Для цього в Rstudio треба натиснути CTRL+SHIFT+H і потім вибрати відповідну папку
+
+Тепер імпортуємо файл із голосуваннями в R
+```{r}
+votes <- read.csv("ukraine_verkhovna_rada_votes.csv", header = TRUE)
+```
+
+
+І вставляємо найменше і найбільше значення відповідно сюди, а потім запускаємо
+```{r}
+first_voting <- 11063
+last_voting <- 11463
+```
+
+
+Відфільтруємо потрібні голосування
+```{r}
+votes %>% 
+  filter(vote_event_id > first_voting,
+         vote_event_id < last_voting) -> votes1
+```
+
+
+Тепер рахуємо кожну опцію голосування по кожному депутату і про всяк випадок можемо записати результат в файл (рядок 61). Частину в лапках можна перейменувати, щоб мати правильну назву
+```{r}
+votes2 <- plyr::ddply(votes1, c("voter_id", "option"), summarise, 
+            count=length(option), .drop = FALSE)
+write.csv(votes2, "MAR2017rada4youvotes.csv")
+```
+
+
+Перейменуємо одне поле, щоб потім вставити імена депутатів
+```{r}
+votes2 %>% 
+  rename(id = voter_id) -> votes3
+```
+
+
+Тепер складна частина. Лишається додати в наш датасет імена депутатів, щоб зручніше працювати.
+Для цього треба зареєструватись на сайті https://rada4you.org і в розділі [АРІ](https://rada4you.org/help/data) взяти лінк на дані депутатів із своїм ключем в розділі "Деталі щодо депутатів" після слів "Наприклад, запит".
+Вставимо цей лінк в рядок 77 коду замість 123456, але одинарні лапки лишаємо.
+Цей код сходить в базу даних і зробить нам таблицю всіх актуальних депутатів
+```{r}
+json <- rjson::fromJSON(readLines('123456', warn="F"))
+people = data.frame(
+  id = numeric(), 
+  electorate = character(), 
+  namefirst = character(), 
+  namelast = character(),
+  party = character()
+)
+for (row in json) 
+{
+  mp <- data.frame(
+    id = row$id, 
+    electorate = row$latest_member$electorate, 
+    namefirst = row$latest_member$name$first, 
+    namelast = row$latest_member$name$last,
+    party = row$latest_member$party
+  )
+  people <- rbind(people, mp)
+}
+
+```
+
+
+Лишилось з'єднати два файли і записати його у файл. Можна перейменувати файл в рядку 103
+```{r}
+merge (votes3, people, by = "id") -> votes3
+write.csv(votes3, "MAR2017_votes_rada4you.csv")
+```
+
+#кінець#
