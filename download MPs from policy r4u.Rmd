@@ -1,0 +1,82 @@
+---
+title: "download MPs from policy"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Як скачати всіх депутатів з політики на сайті https://rada4you.org
+
+
+Для самого початку встановіть собі R звідси. <https://www.r-project.org/>
+
+Щоб мати дружній інтерфейс навколо нього, можете встановити ще безкоштовну версію Rstudio та запускати лише його <https://www.rstudio.com/products/rstudio/download/>
+
+Далі почнімо працювати з даними в R або Rstudio
+
+### Як почати?
+
+Просто відкрийте документ із розширенням .Rmd і проходьте код. Інший спосіб -- просто копіювати код їх обведених комірок і запускайте в R чи Rstudio.
+
+Спочатку встановимо необхідну бібліотеку (це треба запускати тільки в перший раз)
+
+```{r cars}
+#install.packages("jsonlite")
+```
+
+
+Запустимо бібліотеку, яка працює з json
+
+```
+library(jsonlite)
+```
+
+Цей шматок коду запускайте лише якщо у вас Віндовс. Якщо Лінукс чи Мак, просто пропустіть.
+
+```
+Sys.setlocale(category = "LC_ALL", locale = "Ukrainian")
+```
+Щоб піти далі вам потрібно 2 речі:
+
+ * id номер політики. Його можна взяти, якщо відкрити сторінку політики на сайті. Він буде в кінці url адреси
+
+ * гіперлінк на json файл політики із вашим унікальним АРІ ключем. Його можна взяти ось тут https://rada4you.org/help/data#policy Тільки не забудьте ЗАЛОГІНИТИСЬ!
+ 
+ 
+Далі вставляємо посилання на json файл політики із вашим унікальним ключем в лапки замість цифр 123456. 
+
+Зверніть увагу! Цифра перед **.json=** і є номером політики. Переконайтесь що там стоїть потрібна вам, відповідно до політики на сайті.
+ 
+```
+json <- "123455"
+```
+Тепер прочитаємо цей json
+
+```
+policy <- fromJSON(readLines (json, encoding = "UTF-8"))
+```
+Все, json прочитано і треба лише зібрати з його деревовидної структури таку табличку до якої ми звикли. Наступний шматок саме про це.
+
+```
+policy.df <- data.frame(
+  mp_name = policy$people_comparisons$person$latest_member$name$first,
+  mp_lastname = policy$people_comparisons$person$latest_member$name$last,
+  faction = policy$people_comparisons$person$latest_member$party,
+  spysok.mazhorytarka = policy$people_comparisons$person$latest_member$electorate,
+  percents = policy$people_comparisons$agreement,
+  voted.or.not = policy$people_comparisons$voted)
+```
+
+Що ж, можна подивитись на створену табличку
+
+```
+View(policy.df)
+```
+
+І скачати її собі у вже знайомому форматі csv
+
+```
+write.csv(policy.df, "dani_po_deputatam_z_polityky-rada4you.csv")
+```
